@@ -89,82 +89,48 @@ def distance(pos_a, pos_b):
     return abs(pos_a[0] - pos_b[0]) + abs(pos_a[1] - pos_b[1])
 
 
-# def find_optimal_path_helper(grid, start, path, depth, distances):
-#     if depth <= 0:
-#         return path
+search_time = 0
 
-#     pokemon_positions = []
-
-#     start_r, start_c = get_search_start(start)
-#     for i in range(start_r, start_r + SEARCH_DIM):
-#         for j in range(start_c, start_c + SEARCH_DIM):
-#             if is_pokemon(grid, (i, j)):
-#                 pokemon_positions.append((i, j))
-    
-#     pokemon_positions.sort(key=lambda p: distances[(start, p)])
-    
-#     max_score = 0
-#     best_path = path
-    
-#     for pokemon in pokemon_positions:
-#         dist = distances[(start, pokemon)]
-        
-#         if depth - dist < 0:
-#             continue
-
-#         grid[pokemon[0]][pokemon[1]] = "."  # Remove from grid
-#         new_path = find_optimal_path_helper(grid, pokemon, path + [pokemon], depth - dist, distances)
-#         grid[pokemon[0]][pokemon[1]] = "x"  # Restore to grid
-
-#         score = (depth - dist) + len(new_path)
-#         if score > max_score:
-#             max_score = score
-#             best_path = new_path
-
-#     return best_path
-
-
-def find_optimal_path_helper(grid, start, path, depth):
+def find_optimal_path_helper(grid, start, path, depth, distances):
     global search_time, explore_time  # Use global variables
-
+    
     if depth <= 0:
         return path
 
-    # Measure the time spent searching for Pokémon
-    start_search = time.time()
     pokemon_positions = []
+
+    start_search = time.time()
+    
     start_r, start_c = get_search_start(start)
     for i in range(start_r, start_r + SEARCH_DIM):
         for j in range(start_c, start_c + SEARCH_DIM):
             if is_pokemon(grid, (i, j)):
                 pokemon_positions.append((i, j))
+    
+    # pokemon_positions.sort(key=lambda p: distances[(start, p)])
+    
     end_search = time.time()
     search_time += (end_search - start_search)  # Update global timer
-
+    
     max_score = 0
     best_path = path
-
-    # Measure the time spent exploring Pokémon paths
-    start_explore = time.time()
+    
     for pokemon in pokemon_positions:
-        dist = distance(start, pokemon)
-
+        dist = distances[(start, pokemon)]
+        
         if depth - dist < 0:
             continue
 
         grid[pokemon[0]][pokemon[1]] = "."  # Remove from grid
-        new_path = find_optimal_path_helper(grid, pokemon, path + [pokemon], depth - dist)
+        new_path = find_optimal_path_helper(grid, pokemon, path + [pokemon], depth - dist, distances)
         grid[pokemon[0]][pokemon[1]] = "x"  # Restore to grid
 
         score = (depth - dist) + len(new_path)
         if score > max_score:
             max_score = score
             best_path = new_path
-    end_explore = time.time()
-    explore_time += (end_explore - start_explore)  # Update global timer
-
+            
     return best_path
-
  
  
 def pokemons_to_moves(start, pokemons):
@@ -258,7 +224,7 @@ def main():
 
     start = (0,0)
     depth = int(sys.argv[2])
-    grid, dimensions = read_data("data.txt")
+    grid, dimensions = read_data(sys.argv[3])
     WIDTH, HEIGHT, workers = dimensions
 
     if SEARCH_DIM > min(WIDTH, HEIGHT):
@@ -279,13 +245,15 @@ def main():
     find_time = end_time - start_time
     
     moves = pokemons_to_moves(start, path)
-    visualize_search(grid, moves, start)
+    # visualize_search(grid, moves, start)
 
     print(f"Time taken to calculate: {dist_time:.2f}s")
     print(f"Time taken to find path: {find_time:.2f}s")
 
-    print(f"    Search time: {search:.2f}s")
-    print(f"    Recursion time: {recursion:.2f}s")
+    explore_time = find_time - search_time
+
+    print(f"    Search time: {search_time:.2f}s")
+    print(f"    Recursion time: {explore_time:.2f}s")
 
     print(path)
     print(f"Len: {len(path)}")
