@@ -6,6 +6,7 @@ import os
 import time
 import sys
 
+
 directions = {
     "^": (-1, 0),
     "v": (1, 0),
@@ -18,7 +19,7 @@ PENALTY = 0
 MAX_NUM_MOVES = 100
 WIDTH, HEIGHT = 0,0
 AVG_MOVES_FOR_POKEMON = 1
-SEARCH_DIM = 5
+SEARCH_GRID_DIM = (5, 5)
 
 def print_grid(grid):
     for row in grid:
@@ -41,7 +42,7 @@ def out_of_bounds(grid, pos):
 
 
 def is_pokemon(grid, pos):
-    return get_at(grid, pos) == "x"
+    return get_at(grid, pos) == "X" or get_at(grid, pos) == "x"
 
 
 def update_pos(pos, direction):
@@ -63,11 +64,12 @@ def read_data(file):
 
 def get_search_start(pos):
     r, c = pos
-    half_dim = SEARCH_DIM // 2
+    half_dim_y = SEARCH_GRID_DIM[0] // 2
+    half_dim_x = SEARCH_GRID_DIM[1] // 2
 
     # Clamp the starting position to stay within bounds
-    start_r = max(0, min(r - half_dim, HEIGHT - SEARCH_DIM))
-    start_c = max(0, min(c - half_dim, WIDTH - SEARCH_DIM))
+    start_r = max(0, min(r - half_dim_y, HEIGHT - SEARCH_GRID_DIM[0]))
+    start_c = max(0, min(c - half_dim_x, WIDTH - SEARCH_GRID_DIM[1]))
 
     return start_r, start_c
 
@@ -91,15 +93,17 @@ def get_local_pokemon_positions(grid, pos):
     pokemon_positions = []
     
     start_r, start_c = get_search_start(pos)
-    for i in range(start_r, start_r + SEARCH_DIM):
-        for j in range(start_c, start_c + SEARCH_DIM):
-            if is_pokemon(grid, (i, j)):
+    
+    for i in range(start_r, start_r + SEARCH_GRID_DIM[0]):
+        for j in range(start_c, start_c + SEARCH_GRID_DIM[1]):
+            if is_pokemon(grid, (i, j)) and not (i, j) == pos:
                 pokemon_positions.append((i, j))
 
     return pokemon_positions
 
+distances = {}
 
-def find_optimal_path_alpha_helper(grid, start, path, depth, distances, alpha):
+def find_optimal_path_alpha_helper(grid, start, path, depth, alpha):
     global search_time  # Use global variables
     
     current_score = len(path)
@@ -118,14 +122,16 @@ def find_optimal_path_alpha_helper(grid, start, path, depth, distances, alpha):
     best_path = path
     
     for pokemon in local_pokemons:
+        if (start, pokemon) not in distances:
+            distances[(start, pokemon)] = distance(start, pokemon)
         dist = distances[(start, pokemon)]
         
         if depth - dist < 0:
             continue
 
         set_at(grid, pokemon, ".")  # Remove from grid
-        new_path = find_optimal_path_alpha_helper(grid, pokemon, path + [pokemon], depth - dist, distances, alpha)
-        set_at(grid, pokemon, "x")  # Restore to grid
+        new_path = find_optimal_path_alpha_helper(grid, pokemon, path + [pokemon], depth - dist, alpha)
+        set_at(grid, pokemon, "X")  # Restore to grid
 
         # score = (depth - dist) + len(new_path)
         score = len(new_path)
@@ -142,8 +148,8 @@ def find_optimal_path_alpha_helper(grid, start, path, depth, distances, alpha):
     return best_path
  
  
-def find_optimal_path_alpha(grid, start, depth, distances):
-    return find_optimal_path_alpha_helper(grid, start, [], depth, distances, 0)
+def find_optimal_path_alpha(grid, start, depth):
+    return find_optimal_path_alpha_helper(grid, start, [], depth, 0)
 
 
 def find_optimal_path_slow_helper(grid, start, path, depth, distances):
@@ -155,8 +161,8 @@ def find_optimal_path_slow_helper(grid, start, path, depth, distances):
     pokemon_positions = []
 
     start_r, start_c = get_search_start(start)
-    for i in range(start_r, start_r + SEARCH_DIM):
-        for j in range(start_c, start_c + SEARCH_DIM):
+    for i in range(start_r, start_r + SEARCH_GRID_DIM):
+        for j in range(start_c, start_c + SEARCH_GRID_DIM):
             if is_pokemon(grid, (i, j)):
                 pokemon_positions.append((i, j))
     
@@ -173,7 +179,7 @@ def find_optimal_path_slow_helper(grid, start, path, depth, distances):
 
         grid[pokemon[0]][pokemon[1]] = "."  # Remove from grid
         new_path = find_optimal_path_slow_helper(grid, pokemon, path + [pokemon], depth - dist, distances)
-        grid[pokemon[0]][pokemon[1]] = "x"  # Restore to grid
+        grid[pokemon[0]][pokemon[1]] = "X"  # Restore to grid
 
         score = (depth - dist) + len(new_path)
         if score > max_score:
@@ -308,73 +314,112 @@ def average_moves_for_pokemon(grid, start, global_pokemon_positions):
     return sum(distances) / len(distances)
 
 
+def average_density(grid, start, global_pokemon_positions):
+    density = defaultdict(int)
+    
+    pokemons_with_start = global_pokemon_positions
+    if start not in global_pokemon_positions:    
+        pokemons_with_start.add(start)
+        
+    for pokemon in pokemons_with_start:
+        local_pokemons = get_local_pokemon_positions(grid, pokemon)
+        density[pokemon] = len(local_pokemons)
+        
+    density = density.values()  
+    return sum(density) / len(density)
+
+
 def main():
-    global WIDTH, HEIGHT, SEARCH_DIM, AVG_MOVES_FOR_POKEMON
+    global WIDTH, HEIGHT, SEARCH_GRID_DIM, AVG_MOVES_FOR_POKEMON
 
     start = (0,0)
-    SEARCH_DIM =  int(sys.argv[1])
-    MAX_NUM_MOVES = int(sys.argv[2])
-    grid, dimensions = read_data(sys.argv[3])
-    WIDTH, HEIGHT, workers = dimensions
+    SEARCH_GRID_DIM =  (int(sys.argv[1]), int(sys.argv[2]))
+    MAX_NUM_MOVES = int(sys.argv[3])
+    grid, dimensions = read_data(sys.argv[4])
+    HEIGHT, WIDTH, workers = dimensions
+        
+    # run_slow = bool(int(sys.argv[3]))
+    run_slow = False
+    
 
-    if SEARCH_DIM > min(WIDTH, HEIGHT):
-        SEARCH_DIM = min(WIDTH, HEIGHT)
+    if SEARCH_GRID_DIM[0] > HEIGHT:
+        SEARCH_GRID_DIM = (HEIGHT, SEARCH_GRID_DIM[1])
+        
+    if SEARCH_GRID_DIM[1] > WIDTH:
+        SEARCH_GRID_DIM = (SEARCH_GRID_DIM[0], WIDTH)
 
-    print("[*] Calculating pokemon positions...")
+    print("[*] Finding pokemon positions...")
     global_pokemon_positions = get_global_pokemon_positions(grid, start)
                                 
     print("[*] Calculating distances...")
 
     start_time = time.time()
-    distances = calculate_distances(start, global_pokemon_positions)
+    # distances = calculate_distances(start, global_pokemon_positions)
 
     average_moves = average_moves_for_pokemon(grid, start, global_pokemon_positions)
-    print("[*] Average number of moves to reach a pokemon: {:.2f} | Floor: {:.2f}".format(average_moves, math.floor(average_moves)))
-            
+    avg_density = average_density(grid, start, global_pokemon_positions)
+                
     end_time = time.time()
     dist_time = end_time - start_time
+    
+    print("\n--------------------------------------------------------")
+    print(f"Time taken to calculate distances: {dist_time:.2f}s")
             
     AVG_MOVES_FOR_POKEMON = math.floor(average_moves)
+    # AVG_MOVES_FOR_POKEMON = math.ceil(average_moves)
             
-    print("[*] Finding fast optimal path...")
+    # this helps to set the upper bound for the alpha score
+    # based on how many moves on average you need to reach a pokemon
+    print("\nAverage number of moves to reach a pokemon: {:.2f} | Floor: {:.2f}".format(average_moves, AVG_MOVES_FOR_POKEMON))
+    
+    # this helps me to pick what is the best search dimension 
+    # based on how full/sparse the grid is
+    # i want a decent number of pokemons (approx 15-20) in the search area to explore enough candidates 
+    # to make it more probabilistc that i explored the optimal solution path
+    # for a more sparse grid i increase the search dimension to capture more pokemons around me
+    print("Average number of local pokemons for SEARCH_DIM {}: {:.2f}".format(SEARCH_GRID_DIM, avg_density))
+            
+    print("--------------------------------------------------------")
+    print("Finding fast optimal path...")
 
     start_time = time.time()
-    fast_path = find_optimal_path_alpha(grid, start, MAX_NUM_MOVES, distances)
+    fast_path = find_optimal_path_alpha(grid, start, MAX_NUM_MOVES)
     end_time = time.time()
     fast_time = end_time - start_time
     
     moves_fast = pokemons_to_moves(start, fast_path)
-    
-    # print("[*] Finding slow optimal path...")
-
-    # start_time = time.time()
-    # slow_path = find_optimal_path_slow(grid, start, depth, distances)
-    # end_time = time.time()
-    # slow_time = end_time - start_time
-    
-    # moves_slow = pokemons_to_moves(start, slow_path)
     # visualize_search(grid, moves_fast, start)
-
-    print(f"Time taken to calculate distance: {dist_time:.2f}s")
-    print(f"Time taken to find fast: {fast_time:.2f}s")
-    # print(f"Time taken to find slow: {slow_time:.2f}s")
-
-
-    print(fast_path)
-    print(f"Len: {len(fast_path)}")
+    print(f"Time taken to find optimal path fast: {fast_time:.2f}s")
+    print(f"\n{fast_path}")
+    print(f"Pokemons captured: {len(fast_path)}\n")
     print(moves_fast)
-    print(f"moves: {len(moves_fast)}\n")
+    print(f"Moves used: {len(moves_fast)}")
+    print("--------------------------------------------------------")
+    
+    if run_slow:
+        print("Finding slow optimal path...")
 
-    # print(slow_path)
-    # print(f"Len: {len(slow_path)}")
-    # print(moves_slow)
-    # print(f"moves: {len(moves_slow)}\n")
+        start_time = time.time()
+        slow_path = find_optimal_path_slow(grid, start, MAX_NUM_MOVES, distances)
+        end_time = time.time()
+        slow_time = end_time - start_time
+        
+        moves_slow = pokemons_to_moves(start, slow_path)
+        
+        print(f"Time taken to find optimal path slow: {slow_time:.2f}s\n")
+        print(slow_path)
+        print(f"Pokemons captured: {len(slow_path)}\n")
+        print(moves_slow)
+        print(f"Moves used: {len(moves_slow)}")
+        print("--------------------------------------------------------")
     
-    theoretical_score = MAX_NUM_MOVES / AVG_MOVES_FOR_POKEMON
+    theoretical_score = MAX_NUM_MOVES / average_moves + 1 # + 1 for starting at pokemon without making a move
     
-    print(f"Theoretical score:  {theoretical_score:.2f}")
+    print(f"Theoretical score estimate: {theoretical_score:.2f}")
     print(f"Actual alpha score: {score_path(grid, moves_fast, start)}")
-    # print(f"Score slow: {score_path(grid, moves_slow, start)}")
+    
+    if run_slow:
+        print(f"Actual slow score: {score_path(grid, moves_slow, start)}")
 
 if __name__ == '__main__':
     main()
