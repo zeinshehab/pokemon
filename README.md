@@ -4,7 +4,7 @@
 - This program finds the best start position along with the best path and set of moves starting from that position to capture the most pokemons.
 - Output is a single start position along with a set of moves to make (the path) in order to capture the most pokemons.
 
->![note]
+>[!NOTE]
 > I have added a file `results.txt` that contains optimal paths and starting positions that I generated on HIGH accuracy in interest of saving time in case you want to test.
 
 ## Usage
@@ -20,7 +20,7 @@
     - HIGH: Slowest. will give you best solution. 
     - ROUND: mostly used for debug purposes. will perform similar to high mostly
 
->[!info]
+>[!WARNING]
 > - In all of these cases, algorithm will run much faster if you find a good start position early so it might hang a bit (a few seconds on an initial start position and then speed through the rest). Speed also depends on the size of the file and sparsity.
 > - All files up until file `05_corridor.txt` (inclusive) will give the optimal solution on HIGH accuracy in under 20 minutes (on medium in seconds except for corridor takes around 15min).
 > - Keep in mind that tuning these specific parameters for each individual file based on how its organized could yield better results but in general you should get acceptable solutions.
