@@ -99,13 +99,6 @@ def get_global_pokemon_positions(grid):
 
 
 def filter_local_pokemons(current, local_pokemons):
-    """
-    Given the current position and a list of local pokemons,
-    return only those pokemons that are not dominated by another.
-    A pokemon P is considered dominated if there exists a pokemon Q (closer to current)
-    such that the Manhattan distance from current to Q plus Q to P equals the distance from current to P.
-    """
-
     non_dominated = []
     for p in local_pokemons:
         dominated = False
@@ -163,11 +156,10 @@ def find_optimal_path_alpha_helper(grid, start, path, depth, alpha, densities):
     
     local_pokemons = get_local_pokemon_positions(grid, start)
 
-    # the overhead of filtering is slower than just trying all of them
     filtered_pokemons = filter_local_pokemons(start, local_pokemons)
     filtered_pokemons = local_pokemons
         
-    order_local_positions(filtered_pokemons, densities, start)
+    # order_local_positions(filtered_pokemons, densities, start)
     
     # filtered_pokemons.sort(key=lambda p: distances[(start, p)])
     # random.shuffle(filtered_pokemons)
@@ -348,21 +340,19 @@ def greedy_start_scores(grid, global_pokemon_positions, moves):
         starts[path[0]] = len(path)
     
     # all_paths = [x[0] for x in all_paths]
-    # print(all_paths.index((70, 21)))
-    
     # top_5 = all_paths[:5]
     return starts
 
 
 def order_start_positions(grid, positions, densities, closest_distances):
-    start_scores = greedy_start_scores(grid, positions, MAX_NUM_MOVES)
-    median = sum(start_scores.values()) / len(start_scores)
+    # start_scores = greedy_start_scores(grid, positions, MAX_NUM_MOVES)
+    # median = sum(start_scores.values()) / len(start_scores)
     
-    random.shuffle(positions)
+    # random.shuffle(positions)
     
     # positions.sort(key=lambda x: (abs(start_scores[x]-median)) + densities[x] + closest_distances[x], reverse=False)
     # positions.sort(key=lambda x: densities[x] / start_scores[x], reverse=True)
-    # positions.sort(key=lambda x: densities[x], reverse=True)
+    positions.sort(key=lambda x: densities[x] + closest_distances[x], reverse=False)
 
 
 def order_local_positions(positions, densities, start):
@@ -409,7 +399,8 @@ def main():
     print("\n--------------------------------------------------------\n")
     print(f"Time taken to calculate averages: {dist_time:.2f}s\n")
             
-    acc = Accuracy.HIGH
+    # acc = Accuracy.MEDIUM
+    acc = int(sys.argv[6])
     
     if acc == Accuracy.HIGH:
         # soft pruning. Gives slow/decently fast solution better than theoretical score
@@ -454,13 +445,16 @@ def main():
 
     start_positions = global_pokemon_positions   
 
-    best_start = (278, 65)
-    best_start = (49, 126)
+    # best_start = (278, 65)
+    # best_start = (49, 126)
     # best_start = (62, 149)
-    best_start = (44, 14)
-    # best_start = None 
+    # best_start = (44, 14)
+    # best_start = (70, 21)
+    best_start = None 
     best_path = []
-    best_score = theoretical_average
+    best_score = 0
+    if acc == Accuracy.HIGH:
+        best_score = theoretical_average
     
     # path = ">^^^^^<vvv<<^^<<<^^^^>>vv>^^^>^<^^<^>>v>^>^<<<^^>>^^<v<<<v<<v<<^<vv<^^^<v<^^<^^>>^^^<<^>>>^^>>>^<^>^"
     # path = "vvv>v<^^>>>^>>>>>>>>vv>>>>>v<v<<<v<<<<<^^>v<<<v<vv<vv>vvvv^>>vvv<>>>>vv<<v>>>>>>^>>^<<<<^^^^^v>>^>>>"
@@ -483,29 +477,24 @@ def main():
 
 
     # filter start positions. keep only the ones with g score greater than average
-    start_positions = [x for x in start_positions if g_scores[x] >= avg_g_score]
-    start_positions = [x for x in start_positions if densities[x] >= avg_density]
-    start_positions = [x for x in start_positions if closest_distances[x] <= average_moves]
+    # start_positions = [x for x in start_positions if g_scores[x] >= avg_g_score]
+    # start_positions = [x for x in start_positions if densities[x] >= avg_density]
+    # start_positions = [x for x in start_positions if closest_distances[x] <= average_moves]
 
-    # print(f"Start: {start_positions[0]}")
-    # pos_statistics(start_positions[0])
     # currently we order the positions by a balance between density and distance to closest pokemon
     order_start_positions(grid, start_positions, densities, closest_distances)    
-    # print(f"Start: {start_positions[0]}")
+    print(f"Best Start after ordering:")
     pos_statistics(start_positions[0])
     
-    # print(f"Index: {start_positions.index((70, 21))}")
 
     # this reorders the start positions based on proximity to the old best start
     if best_start is not None:
         pos_statistics(best_start)
         reoder_start_positions(start_positions, best_start)   
-    # print(f"Start: {start_positions[0]}")
-    # print(f"Index: {start_positions.index((70, 21))}")
     
-    start_positions = [random.choice(start_positions)] # run only one iteration
+    # start_positions = [random.choice(start_positions)] # run only one iteration
     
-    pos_statistics(start_positions[0])
+        pos_statistics(start_positions[0])
     
     scores = {}
     
@@ -521,19 +510,16 @@ def main():
         
         start_time = time.perf_counter()
         if prune:
-            fast_path = iddfs_find_best_path(grid, start, best_score, densities, MAX_NUM_MOVES)
-            # fast_path = find_optimal_path_alpha(grid, start, MAX_NUM_MOVES, best_score, densities)
+            # fast_path = iddfs_find_best_path(grid, start, best_score, densities, MAX_NUM_MOVES)
+            fast_path = find_optimal_path_alpha(grid, start, MAX_NUM_MOVES, best_score, densities)
         else:
             fast_path = find_optimal_path_alpha(grid, start, MAX_NUM_MOVES, 0, densities)
         end_time = time.perf_counter()
         fast_time = end_time - start_time
         
-        # score = len(fast_path)
         score = len(fast_path)
         scores[start] = score
         
-        # tqdm.write(f"Start: {start} | Density: {densities[start]} | Time: {fast_time:.2f} | Score: {score}")
-            
         start_positions.pop(0)
                 
         if score > best_score:
@@ -547,14 +533,6 @@ def main():
         
         if best_score == theoritical_optimal:
             break
-                
-    threshold = theoretical_average - 5
-    with open("output.txt", "w+") as f:
-        best = []
-        for start, score in scores.items():
-            if score > threshold:
-                best.append(start)
-        f.write(" , ".join([str(x) for x in best]))
 
     print("\n--------------------------------------------------------\n") 
     print(f"Best start: {best_start}\n")   
@@ -567,7 +545,7 @@ def main():
     
     print(f"Theoretical average estimate: {theoretical_average:.2f}")
     print(f"Theoretical optimal estimate: {theoritical_optimal:.2f}")
-    print(f"Actual alpha score: {score_path(grid, best_moves, best_start)}")
+    print(f"Actual score: {score_path(grid, best_moves, best_start)}")
 
 
 if __name__ == '__main__':
