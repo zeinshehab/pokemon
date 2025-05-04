@@ -6,6 +6,7 @@
 
 >[!NOTE]
 > I have added a file `results.txt` that contains optimal paths and starting positions that I generated on HIGH accuracy in interest of saving time in case you want to test.
+> The `pokemon.py` file is used for debugging and testing and is irrelevant.
 
 ## Usage
 
